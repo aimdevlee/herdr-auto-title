@@ -63,26 +63,22 @@ func New(
 	}
 }
 
-// Resolvers builds what the configuration asks titles to be resolved by: the
-// shipped chain, its position in front when asked, and panes named unless that
-// is turned off.
+// Resolvers builds what the configuration asks names to be resolved by: the
+// shipped chain cut to the tab bar, each tab's position in front when asked,
+// and panes named unless that is turned off.
 func Resolvers(cfg Config) (resolver.TitleResolver, resolver.PaneResolver) {
-	chain := resolver.Default(resolver.Options{
+	titles := resolver.Default(resolver.Options{
 		MaxLength:     cfg.MaxLength,
 		BranchMax:     cfg.BranchMax,
 		HideAgentName: !cfg.ShowAgentName,
+		ShowPosition:  cfg.ShowPosition,
 	})
-
-	var titles resolver.TitleResolver = chain
-	if cfg.ShowPosition {
-		titles = resolver.NewNumbered(chain, cfg.MaxLength)
-	}
 
 	if !cfg.RenamePanes {
 		return titles, nil
 	}
 
-	return titles, chain
+	return titles, titles
 }
 
 // Run polls the session until the context is cancelled. Herdr's event stream is

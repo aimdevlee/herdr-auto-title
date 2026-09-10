@@ -50,7 +50,7 @@ func setHome(t *testing.T, dir string) {
 // testResolver builds the shipped chain against a home directory of the test's
 // own, because CWD declines a pane sitting in the user's and the fixtures below
 // must not depend on whose machine they run on.
-func testResolver(t *testing.T) *resolver.Deterministic {
+func testResolver(t *testing.T) *resolver.Fitted {
 	t.Helper()
 	setHome(t, filepath.Join(t.TempDir(), "home"))
 

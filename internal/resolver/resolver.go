@@ -112,6 +112,13 @@ type PaneResolver interface {
 	ResolvePanes(tab state.TabState) []Decision
 }
 
+// Resolver names both a tab and the panes inside it, which is what the shipped
+// chain does and what Fitted wraps.
+type Resolver interface {
+	TitleResolver
+	PaneResolver
+}
+
 // Options are the settings a title is assembled under, as opposed to the ones
 // a single source reads.
 type Options struct {
@@ -121,27 +128,22 @@ type Options struct {
 	// way round so that the zero value keeps the name, which is what a resolver
 	// built without options wants.
 	HideAgentName bool
+	// ShowPosition puts each tab's position in front of its title.
+	ShowPosition bool
 }
 
-// Deterministic resolves titles from a fixed priority list of sources.
+// Deterministic resolves titles from a fixed priority list of sources. Its
+// titles are unbounded: Fitted is what cuts them to the tab bar.
 type Deterministic struct {
 	sources       []Source
-	maxLength     int
 	hideAgentName bool
 }
 
-var (
-	_ TitleResolver = (*Deterministic)(nil)
-	_ PaneResolver  = (*Deterministic)(nil)
-)
+var _ Resolver = (*Deterministic)(nil)
 
 // New builds a resolver from sources, ordering them by confidence rather than
 // by the order they are listed in. Equal confidences keep the order given.
 func New(opts Options, sources ...Source) *Deterministic {
-	if opts.MaxLength <= 0 {
-		opts.MaxLength = DefaultMaxLength
-	}
-
 	ordered := slices.Clone(sources)
 	slices.SortStableFunc(ordered, func(a, b Source) int {
 		return cmp.Compare(b.Confidence(), a.Confidence())
@@ -149,23 +151,26 @@ func New(opts Options, sources ...Source) *Deterministic {
 
 	return &Deterministic{
 		sources:       ordered,
-		maxLength:     opts.MaxLength,
 		hideAgentName: opts.HideAgentName,
 	}
 }
 
-// Default builds the chain Auto Title ships with, so nothing else has to list
-// what it contains.
-func Default(opts Options) *Deterministic {
-	return New(opts,
+// Default builds the chain Auto Title ships with, fitted to the tab bar, so
+// nothing else has to list what it contains.
+func Default(opts Options) *Fitted {
+	return NewFitted(New(opts, defaultSources(opts.BranchMax)...), opts)
+}
+
+func defaultSources(branchMax int) []Source {
+	return []Source{
 		NewAgent(),
 		NewTerminalTitle(),
 		NewTranscript(),
 		NewProcess(),
 		NewSSH(),
-		NewGit(opts.BranchMax),
+		NewGit(branchMax),
 		NewCWD(),
-	)
+	}
 }
 
 // Resolve names a tab in three steps: ask the sources what they see, drop the
@@ -197,16 +202,20 @@ func (d *Deterministic) name(found collected, rows ...Parts) Decision {
 		parts = withoutAbove(parts, row)
 	}
 
-	name := Format(parts, d.maxLength)
+	name := Format(parts)
 	if name == "" {
-		return Decision{
-			Name:       GenericFallback,
-			Confidence: ConfidenceFallback,
-			Reason:     "generic_fallback",
-		}
+		return genericFallback()
 	}
 
 	return Decision{Name: name, Confidence: found.confidence, Reason: found.reason}
+}
+
+func genericFallback() Decision {
+	return Decision{
+		Name:       GenericFallback,
+		Confidence: ConfidenceFallback,
+		Reason:     "generic_fallback",
+	}
 }
 
 // collected is what the chain produced: the parts of a title, and the source

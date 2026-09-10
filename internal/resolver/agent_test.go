@@ -184,7 +184,7 @@ func TestAnAgentTabDoesNotRepeatItsOwnDirectory(t *testing.T) {
 	}
 }
 
-func hiddenAgentChain() *Deterministic {
+func hiddenAgentChain() *Fitted {
 	return Default(Options{
 		MaxLength:     DefaultMaxLength,
 		BranchMax:     DefaultBranchMaxLength,
