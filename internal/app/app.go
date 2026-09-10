@@ -31,6 +31,7 @@ type App struct {
 	changes     *state.Changes
 	manual      *state.Manual
 	reads       *paneReader
+	scroll      *scroller
 	// failures is the run of polls that have failed in a row, which decides
 	// how loudly the next one is reported.
 	failures failureLog
@@ -40,16 +41,20 @@ type App struct {
 	server string
 }
 
-// New builds the application. The client belongs to Run rather than to the
-// App, so one App can be driven by any connection. A nil panes leaves every
-// pane's label alone.
-func New(
-	cfg Config,
-	log *slog.Logger,
-	titles resolver.TitleResolver,
-	panes resolver.PaneResolver,
-) *App {
+// New builds the application and the resolvers it names by. The client belongs
+// to Run rather than to the App, so one App can be driven by any connection.
+func New(cfg Config, log *slog.Logger) *App {
 	changes := state.NewChanges()
+	// The App owns the scroller because how far a name has slid is state one
+	// poll hands the next, and the App is what carries that.
+	scroll := newScroller(cfg.ScrollStep)
+
+	var fit resolver.Fit
+	if cfg.Scroll {
+		fit = scroll.Fit
+	}
+
+	titles, panes := resolvers(cfg, fit)
 
 	return &App{
 		pollEvery:   cfg.Poll,
@@ -60,18 +65,20 @@ func New(
 		changes:     changes,
 		manual:      state.LoadManual(cfg.ManualPath),
 		reads:       newPaneReader(cfg, log, changes),
+		scroll:      scroll,
 	}
 }
 
-// Resolvers builds what the configuration asks names to be resolved by: the
-// shipped chain cut to the tab bar, each tab's position in front when asked,
-// and panes named unless that is turned off.
-func Resolvers(cfg Config) (resolver.TitleResolver, resolver.PaneResolver) {
+// resolvers builds what the configuration asks names to be resolved by: the
+// shipped chain fitted to the tab bar by fit, each tab's position in front when
+// asked, and panes named unless that is turned off.
+func resolvers(cfg Config, fit resolver.Fit) (resolver.TitleResolver, resolver.PaneResolver) {
 	titles := resolver.Default(resolver.Options{
 		MaxLength:     cfg.MaxLength,
 		BranchMax:     cfg.BranchMax,
 		HideAgentName: !cfg.ShowAgentName,
 		ShowPosition:  cfg.ShowPosition,
+		Fit:           fit,
 	})
 
 	if !cfg.RenamePanes {
@@ -164,8 +171,10 @@ func (a *App) readAndRename(ctx context.Context, client herdr.Client) error {
 	a.changes.Observe(snapshot.Panes)
 	// Taken from the snapshot rather than from the tabs below, because this is
 	// what decides which of them are locked, and a locked tab is never read.
-	a.manual.Tabs.Retain(labelsIn(snapshot.Tabs))
-	a.manual.Panes.Retain(paneLabelsIn(snapshot.Panes))
+	liveTabs, livePanes := labelsIn(snapshot.Tabs), paneLabelsIn(snapshot.Panes)
+	a.manual.Tabs.Retain(liveTabs)
+	a.manual.Panes.Retain(livePanes)
+	a.scroll.Retain(liveTabs, livePanes)
 
 	tabs := a.tabsIn(snapshot)
 	reads := a.reads.forPoll(snapshot.Panes)
@@ -313,6 +322,14 @@ func (a *App) apply(
 	// Recorded before the log line so the next poll cannot read this rename as
 	// the user's.
 	claims.Applied(seen.ID, decision.Name)
+
+	// A slide is not a rename: the label is the one the last poll set, one
+	// step further along.
+	if a.scroll.sliding(seen.ID) {
+		a.log.Debug(kind.noun+" label slid", idKey, seen.ID, "label", decision.Name)
+		return
+	}
+
 	a.log.Info(kind.noun+" renamed",
 		idKey, seen.ID,
 		"old", seen.Current,

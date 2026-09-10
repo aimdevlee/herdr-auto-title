@@ -130,10 +130,12 @@ type Options struct {
 	HideAgentName bool
 	// ShowPosition puts each tab's position in front of its title.
 	ShowPosition bool
+	// Fit is how a name too wide for MaxLength is made to fit. Nil truncates.
+	Fit Fit
 }
 
 // Deterministic resolves titles from a fixed priority list of sources. Its
-// titles are unbounded: Fitted is what cuts them to the tab bar.
+// titles are unbounded: Fitted is what fits them to the tab bar.
 type Deterministic struct {
 	sources       []Source
 	hideAgentName bool

@@ -55,7 +55,7 @@ name is derived from the state read for that poll, which is what makes the
 resolver's determinism worth anything: identical session state always yields an
 identical title.
 
-Four things are carried between polls, and each exists because a snapshot
+Five things are carried between polls, and each exists because a snapshot
 cannot express it:
 
 - **When each pane last changed** (`internal/state/changes.go`). A snapshot says
@@ -101,6 +101,14 @@ cannot express it:
 - **What Auto Title last named each tab** (`internal/state/manual.go`), which is
   how a rename by the user is told from the plugin's own work. That is a design
   of its own: [manual rename protection](./manual-rename-protection.md).
+- **How far each name has slid** (`internal/app/scroll.go`), for every tab and
+  pane, when `HERDR_AUTO_TITLE_SCROLL` is on. A name too wide for the row it is
+  on is then shown a window at a time rather than cut, and the window moves
+  `HERDR_AUTO_TITLE_SCROLL_STEP` columns per poll. The count restarts when the
+  name itself changes and is dropped with the tab or pane, so an id Herdr hands
+  out again starts at the head. The rename that moves the window is the
+  plugin's own, recorded like any other, which is why a label that changes
+  every poll does not read as the user's.
 
 One consequence worth stating: **the interval is the rename rate.** A tab
 changes name at most once per poll however fast its pane is churning, so
@@ -113,7 +121,7 @@ changes name at most once per poll however fast its pane is churning, so
 3. `Claims.Retain`, for tabs and for panes — drop bookkeeping for what the
    session no longer holds, and release a lock whose owner has moved on. This
    runs off the snapshot's own labels, because it is what decides which tabs and
-   panes the next steps can skip.
+   panes the next steps can skip. The sliding names are pruned to the same ids.
 4. `tabsIn` — assemble tabs with their panes from the snapshot alone. Nothing
    is read here: assembly is what says which pane will be asked about.
 5. Per tab (`nameTab`): skip it if locked, otherwise read the one pane the tab

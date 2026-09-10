@@ -8,12 +8,30 @@ import (
 	"github.com/kryptamine/herdr-auto-title/internal/state"
 )
 
+// Fit fits a name into width columns of the tab bar; a width of zero is no
+// bound. The id of what is being named lets a fit carry something between
+// polls, which is what sliding needs and truncation does not.
+type Fit func(id, name string, width int) string
+
+func truncateFit(_, name string, width int) string {
+	return truncate(name, width)
+}
+
+// fitter is the fit the options ask for, truncation when they ask for none.
+func (o Options) fitter() Fit {
+	if o.Fit == nil {
+		return truncateFit
+	}
+
+	return o.Fit
+}
+
 // positionMark separates a tab's position from the name that follows it. It is
 // deliberately not Separator: the position is not one of the things a title
 // says about a tab, and the parts separator would read as if it were.
 const positionMark = " · "
 
-// Fitted cuts what it wraps to the tab bar and, when asked, puts the tab's
+// Fitted fits what it wraps to the tab bar and, when asked, puts the tab's
 // position in front — the key that switches to that tab. It wraps a resolver
 // rather than being part of one, so the sources stay about what a tab holds.
 type Fitted struct {
@@ -22,13 +40,15 @@ type Fitted struct {
 	// than added on top, so a numbered title is never wider than an unnumbered
 	// one.
 	maxLength    int
+	fit          Fit
 	showPosition bool
 }
 
 var _ Resolver = (*Fitted)(nil)
 
-// NewFitted wraps inner, which must leave its names unbounded: the cut here
-// is the only one. A width of zero or less takes the default.
+// NewFitted wraps inner, which must leave its names unbounded: the fit here is
+// the only one, so a sliding name moves once per poll. A width of zero or less
+// takes the default.
 func NewFitted(inner Resolver, opts Options) *Fitted {
 	if opts.MaxLength <= 0 {
 		opts.MaxLength = DefaultMaxLength
@@ -37,6 +57,7 @@ func NewFitted(inner Resolver, opts Options) *Fitted {
 	return &Fitted{
 		inner:        inner,
 		maxLength:    opts.MaxLength,
+		fit:          opts.fitter(),
 		showPosition: opts.ShowPosition,
 	}
 }
@@ -44,7 +65,7 @@ func NewFitted(inner Resolver, opts Options) *Fitted {
 // Resolve names the tab, and puts its position in front unless the tab bar is
 // too narrow to carry both.
 func (f *Fitted) Resolve(tab state.TabState) Decision {
-	// The prefix goes in front because the cut takes the tail: a position at
+	// The prefix goes in front because fitting keeps the head: a position at
 	// the end is the first thing a title too wide for the tab bar would lose.
 	prefix := ""
 	if f.showPosition {
@@ -57,25 +78,25 @@ func (f *Fitted) Resolve(tab state.TabState) Decision {
 		prefix, room = "", f.maxLength
 	}
 
-	return f.label(f.inner.Resolve(tab), prefix, room)
+	return f.label(tab.ID, f.inner.Resolve(tab), prefix, room)
 }
 
-// ResolvePanes names the panes of a tab and cuts each label to the same width.
+// ResolvePanes names the panes of a tab and fits each label to the same width.
 // No position leads a pane: the key in front of a title switches to a tab, and
 // there is none that switches to a pane.
 func (f *Fitted) ResolvePanes(tab state.TabState) []Decision {
 	decisions := f.inner.ResolvePanes(tab)
 	for i, decision := range decisions {
-		decisions[i] = f.label(decision, "", f.maxLength)
+		decisions[i] = f.label(tab.Panes[i].ID, decision, "", f.maxLength)
 	}
 
 	return decisions
 }
 
-// label puts prefix in front of what room columns leave of the decision's
-// name, and falls back when the cut leaves nothing.
-func (f *Fitted) label(decision Decision, prefix string, room int) Decision {
-	name := truncate(decision.Name, room)
+// label puts prefix in front of what the fit leaves of the decision's name in
+// room columns, and falls back when that is nothing.
+func (f *Fitted) label(id string, decision Decision, prefix string, room int) Decision {
+	name := f.fit(id, decision.Name, room)
 	if name == "" {
 		return genericFallback()
 	}

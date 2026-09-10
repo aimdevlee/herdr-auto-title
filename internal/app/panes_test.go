@@ -1,7 +1,6 @@
 package app
 
 import (
-	"path/filepath"
 	"testing"
 
 	"github.com/kryptamine/herdr-auto-title/internal/herdr"
@@ -220,17 +219,6 @@ func TestNamingPanesCostsOneProcessReadPerPane(t *testing.T) {
 	}
 }
 
-// appFromConfig builds the App from the resolvers the configuration asks for,
-// which is what decides what reaches the pane path and what does not.
-func appFromConfig(t *testing.T, cfg Config) *App {
-	t.Helper()
-	setHome(t, filepath.Join(t.TempDir(), "home"))
-
-	titles, panes := Resolvers(cfg)
-
-	return New(cfg, discardLogger(), titles, panes)
-}
-
 func TestTheSettingsThatShapeATitleShapeAPaneLabel(t *testing.T) {
 	// A pane is named by the chain that names tabs, so everything the user has
 	// tuned about a title holds for a pane too. The position is the exception,
@@ -277,7 +265,7 @@ func TestTheSettingsThatShapeATitleShapeAPaneLabel(t *testing.T) {
 				{PaneID: "wE:p1", TabID: "wE:t1", CWD: dashboard, Focused: true},
 				{PaneID: "wE:p2", TabID: "wE:t1", CWD: billing, Agent: "claude"},
 			})
-			appFromConfig(t, cfg).poll(t.Context(), client)
+			newTestApp(t, cfg).poll(t.Context(), client)
 
 			var got string
 

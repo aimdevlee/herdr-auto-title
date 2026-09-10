@@ -29,9 +29,11 @@ var (
 
 func testConfig() Config {
 	return Config{
-		Poll:      testPoll,
-		MaxLength: resolver.DefaultMaxLength,
-		BranchMax: resolver.DefaultBranchMaxLength,
+		Poll:          testPoll,
+		MaxLength:     resolver.DefaultMaxLength,
+		BranchMax:     resolver.DefaultBranchMaxLength,
+		ScrollStep:    resolver.DefaultScrollStep,
+		ShowAgentName: true,
 	}
 }
 
@@ -47,32 +49,14 @@ func setHome(t *testing.T, dir string) {
 	t.Setenv("USERPROFILE", dir)
 }
 
-// testResolver builds the shipped chain against a home directory of the test's
-// own, because CWD declines a pane sitting in the user's and the fixtures below
-// must not depend on whose machine they run on.
-func testResolver(t *testing.T) *resolver.Fitted {
+// newTestApp builds an App against a home directory of the test's own, because
+// CWD declines a pane sitting in the user's and the fixtures below must not
+// depend on whose machine they run on.
+func newTestApp(t *testing.T, cfg Config) *App {
 	t.Helper()
 	setHome(t, filepath.Join(t.TempDir(), "home"))
 
-	return resolver.Default(resolver.Options{
-		MaxLength: resolver.DefaultMaxLength,
-		BranchMax: resolver.DefaultBranchMaxLength,
-	})
-}
-
-// newTestApp builds an App on the shipped chain, naming panes only when the
-// configuration asks for it.
-func newTestApp(t *testing.T, cfg Config) *App {
-	t.Helper()
-
-	chain := testResolver(t)
-
-	var panes resolver.PaneResolver
-	if cfg.RenamePanes {
-		panes = chain
-	}
-
-	return New(cfg, discardLogger(), chain, panes)
+	return New(cfg, discardLogger())
 }
 
 // harness drives an App against a stubbed Herdr session one poll at a time, so

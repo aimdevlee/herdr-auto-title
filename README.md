@@ -47,6 +47,8 @@ $HOME                                  →  6 · Shell
 
 - The number in front is the tab's position, which is also the key that
   switches to it.
+- A title too wide for the tab bar is cut. `HERDR_AUTO_TITLE_SCROLL=true` slides
+  it across the bar instead, and a pane's label with it.
 - The default branch is left out. Other branches are cut down to what
   identifies them: `bugfix-asa-cpanel-uapi-mc-13675` becomes `MC-13675`.
 - A tab with several panes is named after the focused pane, a pane with a busy
@@ -81,6 +83,8 @@ change. It does not read the config directory that `herdr plugin list` prints.
 | `HERDR_AUTO_TITLE_DEBUG`        | `false`                                  | Log at DEBUG instead of INFO                                       |
 | `HERDR_AUTO_TITLE_POLL_MS`      | `500`                                    | How often the session is read, in milliseconds                     |
 | `HERDR_AUTO_TITLE_MAX_LENGTH`   | `50`                                     | Longest title, in columns                                          |
+| `HERDR_AUTO_TITLE_SCROLL`       | `false`                                  | Slide a name too wide for that instead of cutting it               |
+| `HERDR_AUTO_TITLE_SCROLL_STEP`  | `1`                                      | How far a sliding name moves per poll, in columns                  |
 | `HERDR_AUTO_TITLE_BRANCH_MAX`   | `12`                                     | Longest branch in a title, in columns; `0` hides branches          |
 | `HERDR_AUTO_TITLE_POSITION`     | `true`                                   | Put the tab's position in front of its title                       |
 | `HERDR_AUTO_TITLE_MANUAL_FILE`  | `manual-names.json` next to `config.env` | Where names you set by hand are kept; empty keeps them in memory   |
